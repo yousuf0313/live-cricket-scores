@@ -504,6 +504,12 @@
       table.rec td.holder { font-weight: 500; }
       table.rec td.detail { color: var(--ink-soft); }
 
+      .mbadge { display:inline-block; font-size:.68rem; font-weight:800; letter-spacing:.06em; padding:2px 8px; border-radius:999px; margin-right:8px; vertical-align:middle; }
+      .mbadge.live { background:#d93025; color:#fff; animation:mbpulse 1.6s infinite; }
+      .mbadge.result { background:#e8eaed; color:#5f6368; }
+      .mbadge.upcoming { background:#fef7e0; color:#b06000; }
+      @keyframes mbpulse { 0%,100% { opacity:1; } 50% { opacity:.55; } }
+
       /* ---------- Player search ---------- */
       .search-card { padding: 18px 20px 20px; margin-bottom: 14px; }
       .search-row { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -1007,7 +1013,7 @@
             <button type="button" class="sample-btn" data-player="Shaheen Shah Afridi">Shaheen Shah Afridi <span class="sp-country">· Pakistan</span></button>
             <button type="button" class="sample-btn" data-player="Pat Cummins">Pat Cummins <span class="sp-country">· Australia</span></button>
           </div>
-          <p class="player-note" id="playerNote">Type any player's name to load their profile and career record from the CricketData database — or tap one of the famous players above to try it.</p>
+          <p class="player-note" id="playerNote">Type any player's name to load their photo, profile and career record — or tap one of the famous players above to try it.</p>
           <div class="player-result" id="playerResult"></div>
         </div>
 
@@ -1839,10 +1845,122 @@ var espnEventId = null;
           _state: state
         };
       }
+
+      /* ---------- Multi-source data layer (2026-11-04) ----------
+         Route 1: ESPN per-series scoreboards (full scores).
+         Route 2: ESPN header events (live status + summaries) — fills
+           anything route 1 missed and takes over if it fails.
+         Route 3: CricketData currentMatches — tried when 1+2 are empty.
+         Route 4: TheSportsDB fixtures (today + tomorrow) — schedule
+           fill for matches no score feed carries yet.
+         Every route has a short timeout, so a dead route never blocks
+         the page: the next route answers instead. */
+      function fetchT(url, ms) {
+        var ctrl = ("AbortController" in window) ? new AbortController() : null;
+        var to = null;
+        var opts = { cache: "no-store" };
+        if (ctrl) { opts.signal = ctrl.signal; to = setTimeout(function () { ctrl.abort(); }, ms || 6000); }
+        return fetch(url, opts).then(function (res) {
+          if (to) { clearTimeout(to); }
+          if (!res.ok) { throw new Error("HTTP " + res.status); }
+          return res.json();
+        }).catch(function (e) { if (to) { clearTimeout(to); } throw e; });
+      }
+      function teamPairKey(teams) {
+        if (!teams || teams.length < 2) { return ""; }
+        var a = String(teams[0]).toLowerCase().replace(/[^a-z]/g, ""), b = String(teams[1]).toLowerCase().replace(/[^a-z]/g, "");
+        return a < b ? a + "|" + b : b + "|" + a;
+      }
+      function matchState(m) {
+        if (m._state) { return m._state; }
+        if (m.matchEnded === true) { return "post"; }
+        if (m.matchStarted === true) { return "in"; }
+        return "pre";
+      }
+      function mergeMatches(base, extra) {
+        var seen = {}, out = [];
+        (base || []).forEach(function (m) { var k = teamPairKey(m.teams); if (k) { seen[k] = true; } out.push(m); });
+        (extra || []).forEach(function (m) { var k = teamPairKey(m.teams); if (k && seen[k]) { return; } if (k) { seen[k] = true; } out.push(m); });
+        return out;
+      }
+      function sortMatches(list) {
+        var rank = { "in": 0, "pre": 1, "post": 2 };
+        function pak(m) { var t = (m.teams || []).join(" ").toLowerCase(); return t.indexOf("pakistan") !== -1 ? 0 : 1; }
+        return list.slice().sort(function (a, b) {
+          var ra = rank[matchState(a)], rb = rank[matchState(b)];
+          if (ra !== rb) { return ra - rb; }
+          if (ra === 0 && pak(a) !== pak(b)) { return pak(a) - pak(b); }
+          var da = new Date(a.dateTimeGMT || a.date || 0).getTime() || 0, db = new Date(b.dateTimeGMT || b.date || 0).getTime() || 0;
+          return ra === 2 ? db - da : da - db;
+        });
+      }
+      function fetchEspnHeaderEvents() {
+        return fetchT(ESPN_HEADER_URL, 7000).then(function (json) {
+          var out = [];
+          ((json && json.sports) || []).forEach(function (sp) {
+            (sp.leagues || []).forEach(function (lg) {
+              (lg.events || []).forEach(function (ev) {
+                var teams = String(ev.name || "").split(/\s+v\s+/);
+                if (teams.length < 2) { return; }
+                var fs = ev.fullStatus || {};
+                var state = (ev.status === "in" || ev.status === "pre" || ev.status === "post") ? ev.status : "pre";
+                out.push({
+                  id: "espnh:" + (ev.id || ""),
+                  espnSeries: String(lg.id || ""), espnEvent: String(ev.id || ""),
+                  name: lg.name || "", matchType: lg.name || "",
+                  teams: [teams[0].trim(), teams[1].trim()], score: [],
+                  status: fs.longSummary || fs.summary || ev.summary || "",
+                  venue: ev.location || "",
+                  date: ev.date || "", dateTimeGMT: ev.date || "",
+                  matchStarted: state !== "pre", matchEnded: state === "post",
+                  _state: state
+                });
+              });
+            });
+          });
+          return out;
+        }).catch(function () { return []; });
+      }
+      var TSDB_KEY = "123";
+      function fetchTsdbFixtures() {
+        function dayStr(d) { return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+        function one(day) {
+          return fetchT("https://www.thesportsdb.com/api/v1/json/" + TSDB_KEY + "/eventsday.php?d=" + day + "&s=Cricket", 6000)
+            .then(function (json) {
+              var out = [];
+              ((json && json.events) || []).forEach(function (ev) {
+                if (!ev.strHomeTeam || !ev.strAwayTeam) { return; }
+                var played = (ev.intHomeScore !== null && ev.intHomeScore !== "" && typeof ev.intHomeScore !== "undefined");
+                out.push({
+                  id: "tsdb:" + (ev.idEvent || ""),
+                  name: ev.strLeague || "Cricket", matchType: ev.strLeague || "Cricket",
+                  teams: [ev.strHomeTeam.replace(/ Cricket$/, ""), ev.strAwayTeam.replace(/ Cricket$/, "")],
+                  score: [], status: played ? "Result" : "Fixture — the score feed has not picked this match up yet",
+                  venue: ev.strVenue || "", date: ev.dateEvent || "", dateTimeGMT: (ev.strTimestamp || ev.dateEvent || ""),
+                  matchStarted: false, matchEnded: played, _state: played ? "post" : "pre", _fixtureOnly: true
+                });
+              });
+              return out;
+            }).catch(function () { return []; });
+        }
+        var now = new Date();
+        var tom = new Date(now.getTime() + 86400000);
+        return Promise.all([one(dayStr(now)), one(dayStr(tom))]).then(function (r) { return r[0].concat(r[1]); });
+      }
+      function fetchCricApiList() {
+        if (!CONFIG.CRICAPI_KEY) { return Promise.resolve([]); }
+        var url = "https://api.cricapi.com/v1/currentMatches?apikey=" + encodeURIComponent(CONFIG.CRICAPI_KEY) + "&offset=0";
+        return fetchT(url, 6000).then(function (json) {
+          return ((json && json.data) || []).map(function (m) {
+            m._state = m.matchEnded ? "post" : (m.matchStarted ? "in" : "pre");
+            return m;
+          });
+        }).catch(function () { return []; });
+      }
+
       function fetchEspnWorld() {
         function seriesScoreboard(s) {
-          return fetch("https://site.api.espn.com/apis/site/v2/sports/cricket/" + s.id + "/scoreboard", { cache: "no-store" })
-            .then(function (res) { if (!res.ok) { throw new Error("HTTP " + res.status); } return res.json(); })
+          return fetchT("https://site.api.espn.com/apis/site/v2/sports/cricket/" + s.id + "/scoreboard", 7000)
             .then(function (json) {
               var lname = (json.leagues && json.leagues[0] && json.leagues[0].name) || s.name || "";
               var out = [];
@@ -1854,8 +1972,7 @@ var espnEventId = null;
             })
             .catch(function () { return []; });
         }
-        return fetch(ESPN_HEADER_URL, { cache: "no-store" })
-          .then(function (res) { if (!res.ok) { throw new Error("HTTP " + res.status); } return res.json(); })
+        return fetchT(ESPN_HEADER_URL, 7000)
           .then(function (json) {
             var series = [], seen = {};
             ((json && json.sports) || []).forEach(function (sp) {
@@ -1886,7 +2003,7 @@ var espnEventId = null;
                 });
                 list.forEach(function (m) { if (!seenEv[m.espnEvent]) { seenEv[m.espnEvent] = true; out.push(m); } });
               });
-              out.forEach(function (m) { delete m._state; });
+              /* m._state is kept: the world grid uses it for LIVE / RESULT badges */
               return out;
             });
           });
@@ -1895,8 +2012,6 @@ var espnEventId = null;
       function fetchLiveScore(force) {
         var cached = readCache();
         if (cached && (Date.now() - cached.ts) < CACHE_TTL_MS) {
-          // Fresh cache: reuse it. A manual refresh may bypass the cache,
-          // but not more often than every 30 seconds.
           if (!force || (Date.now() - cached.ts) < 30 * 1000) {
             applyMatches(cached.data, cached.ts);
             return;
@@ -1904,37 +2019,32 @@ var espnEventId = null;
         }
         if (fetchInFlight) { return; }
         fetchInFlight = true;
-        fetchEspnWorld()
+        /* Routes 1+2 together: ESPN scoreboards merged with ESPN header
+           events, so a gap or failure in one is covered by the other. */
+        Promise.all([fetchEspnWorld().catch(function () { return []; }), fetchEspnHeaderEvents()])
+          .then(function (r) {
+            var list = mergeMatches(r[0], r[1]);
+            if (list.length) { return list; }
+            return fetchCricApiList(); /* Route 3, only when ESPN gave nothing */
+          })
+          .then(function (list) {
+            /* Route 4: TheSportsDB fixtures fill — never overrides scores */
+            return fetchTsdbFixtures().then(function (fx) { return mergeMatches(list, fx); }).catch(function () { return list; });
+          })
           .then(function (list) {
             fetchInFlight = false;
             if (list && list.length) {
+              list = sortMatches(list);
               writeCache(list);
               applyMatches(list, Date.now());
               fetchEspn();
-            } else { fetchCricApiWorld(cached); }
-          })
-          .catch(function () { fetchInFlight = false; fetchCricApiWorld(cached); });
-      }
-      function fetchCricApiWorld(cached) {
-        if (!CONFIG.CRICAPI_KEY) {
-          if (cached) { applyMatches(cached.data, cached.ts); } else { showFallback(); }
-          return;
-        }
-        if (fetchInFlight) { return; }
-        fetchInFlight = true;
-        var url = "https://api.cricapi.com/v1/currentMatches?apikey=" +
-          encodeURIComponent(CONFIG.CRICAPI_KEY) + "&offset=0";
-        fetch(url)
-          .then(function (res) { if (!res.ok) { throw new Error("HTTP " + res.status); } return res.json(); })
-          .then(function (json) {
-            var list = (json && json.data) || [];
-            writeCache(list);
-            applyMatches(list, Date.now());
+            } else if (cached) { applyMatches(cached.data, cached.ts); }
+            else { showFallback(); }
           })
           .catch(function () {
+            fetchInFlight = false;
             if (cached) { applyMatches(cached.data, cached.ts); } else { showFallback(); }
-          })
-          .then(function () { fetchInFlight = false; });
+          });
       }
 
       els.refreshBtn.addEventListener("click", function () {
@@ -2018,9 +2128,11 @@ var espnEventId = null;
           var teams = m.teams || [];
           var hasScore = !!(m.score && m.score.length);
           var day = dayLabel(m.date);
-          html += '<article class="gcard mclick" data-cat="' + classifyMatch(m) + '"' +
+          var mst = matchState(m);
+          var badge = mst === "in" ? '<span class="mbadge live">\u25CF LIVE</span>' : mst === "post" ? '<span class="mbadge result">RESULT</span>' : '<span class="mbadge upcoming">UPCOMING</span>';
+          html += '<article class="gcard' + (m._fixtureOnly ? "" : " mclick") + '" data-cat="' + classifyMatch(m) + '"' +
             (m.id ? ' data-mid="' + esc(m.id) + '"' : "") + ">" +
-            '<div class="mday">' + esc(day || "") + "</div>";
+            '<div class="mday">' + badge + esc(day || "") + "</div>";
           if (teams.length >= 2) {
             if (hasScore) {
               var cells = "";
@@ -2053,83 +2165,163 @@ var espnEventId = null;
         });
         if (html) {
           els.worldGrid.innerHTML = html;
-          els.worldNote.textContent = "Matches from around the world, straight from the live data feed — tap any match for its full scorecard and squads. This list refreshes automatically every 2 minutes.";
+          var liveNow = list.filter(function (x) { return matchState(x) === "in"; });
+          els.worldNote.textContent = liveNow.length ?
+            ("\uD83D\uDD34 LIVE NOW (" + liveNow.length + "): " + liveNow.map(function (x) { return (x.teams || []).join(" v "); }).slice(0, 4).join(" \u00B7 ") + (liveNow.length > 4 ? " \u00B7 and more below" : "") + " — tap any match for its full scorecard. This list refreshes automatically every 2 minutes.") :
+            "No match is live at this moment — upcoming matches and latest results are below. This list refreshes automatically every 2 minutes.";
           applyWorldFilter();
         }
       }
 
-      /* ---------- Player search (CricketData) ---------- */
+      /* ---------- Player search (multi-source, 2026-11-04) ----------
+         Search routes run together and merge: ESPN search (photo,
+         country), TheSportsDB (photo, role, bio), CricketData (career
+         statistics when reachable). The old version used CricketData
+         alone; when its tiny free quota died, every search came back
+         empty. Now any single route can fail and the others answer. */
+      var playerHits = {};
+      function tsdbPlayerSearch(q) {
+        return fetchT("https://www.thesportsdb.com/api/v1/json/123/searchplayers.php?p=" + encodeURIComponent(q), 6000)
+          .then(function (json) {
+            return ((json && json.player) || []).filter(function (p) { return p.strSport === "Cricket"; }).map(function (p) {
+              return { src: "tsdb", tsdbId: p.idPlayer, name: p.strPlayer, country: p.strNationality || p.strTeam || "", role: p.strPosition || "", photo: p.strCutout || p.strThumb || "" };
+            });
+          }).catch(function () { return []; });
+      }
+      function espnPlayerSearch(q) {
+        return fetchT("https://site.web.api.espn.com/apis/search/v2?query=" + encodeURIComponent(q) + "&limit=10", 6000)
+          .then(function (json) {
+            var out = [];
+            ((json && json.results) || []).forEach(function (res) {
+              if (res.type !== "player") { return; }
+              (res.contents || []).forEach(function (c) {
+                var m = /a:(\d+)/.exec(c.uid || "");
+                if (!m) { return; }
+                out.push({ src: "espn", espnId: m[1], name: c.displayName, country: c.subtitle || "", role: "", photo: (c.image && c.image.default) || "" });
+              });
+            });
+            return out;
+          }).catch(function () { return []; });
+      }
+      function cricApiPlayerSearch(q) {
+        if (!CONFIG.CRICAPI_KEY) { return Promise.resolve([]); }
+        return fetchT("https://api.cricapi.com/v1/players?apikey=" + encodeURIComponent(CONFIG.CRICAPI_KEY) + "&offset=0&search=" + encodeURIComponent(q), 5000)
+          .then(function (json) {
+            return ((json && json.data) || []).map(function (p) { return { src: "cricapi", cricId: p.id, name: p.name, country: p.country || "", role: "", photo: "" }; });
+          }).catch(function () { return []; });
+      }
       function searchPlayer() {
         var q = els.playerInput.value.trim();
         if (!q) {
           els.playerNote.textContent = "Type a player's name above first — for example Babar Azam, Virat Kohli or Joe Root.";
           return;
         }
-        if (!CONFIG.CRICAPI_KEY) {
-          els.playerResult.innerHTML = "";
-          els.playerNote.textContent = "\u201C" + q + "\u201D — full player search (profile and career record) becomes active once the CricketData data connection (API key) is added. Until then, the famous players above are shown as samples.";
-          return;
-        }
         els.playerNote.textContent = "Searching for " + q + "…";
         els.playerResult.innerHTML = "";
-        var url = "https://api.cricapi.com/v1/players?apikey=" +
-          encodeURIComponent(CONFIG.CRICAPI_KEY) + "&offset=0&search=" + encodeURIComponent(q);
-        fetch(url)
-          .then(function (res) { if (!res.ok) { throw new Error("HTTP " + res.status); } return res.json(); })
-          .then(function (json) {
-            var players = ((json && json.data) || []).slice(0, 6);
+        Promise.all([espnPlayerSearch(q), tsdbPlayerSearch(q), cricApiPlayerSearch(q)])
+          .then(function (r) {
+            var seen = {}, players = [];
+            r[0].concat(r[1], r[2]).forEach(function (p) {
+              var k = String(p.name || "").toLowerCase().replace(/[^a-z]/g, "");
+              if (!k) { return; }
+              if (seen[k]) {
+                var ex = seen[k];
+                if (p.espnId && !ex.espnId) { ex.espnId = p.espnId; }
+                if (p.tsdbId && !ex.tsdbId) { ex.tsdbId = p.tsdbId; }
+                if (p.cricId && !ex.cricId) { ex.cricId = p.cricId; }
+                if (p.photo && !ex.photo) { ex.photo = p.photo; }
+                if (p.role && !ex.role) { ex.role = p.role; }
+                if (p.country && !ex.country) { ex.country = p.country; }
+                return;
+              }
+              seen[k] = p; players.push(p);
+            });
+            players = players.slice(0, 6);
             if (!players.length) {
               els.playerNote.textContent = "No player found for \u201C" + q + "\u201D. Check the spelling and try again.";
               return;
             }
             els.playerNote.textContent = "Tap a player to load the profile and career record.";
+            playerHits = {};
             var html = "";
-            players.forEach(function (p) {
-              html += '<article class="gcard player-hit" data-id="' + esc(p.id) + '" style="margin-bottom:10px; cursor:pointer;">' +
-                '<span class="p-name" style="font-size:1.15rem; font-weight:700;">' + esc(p.name) + "</span>" +
+            players.forEach(function (p, ix) {
+              playerHits["h" + ix] = p;
+              html += '<article class="gcard player-hit" data-hit="h' + ix + '" style="margin-bottom:10px; cursor:pointer; display:flex; gap:12px; align-items:center;">' +
+                (p.photo ? '<img loading="lazy" src="' + esc(p.photo) + '" alt="" style="width:52px; height:52px; border-radius:50%; object-fit:cover; background:#f1f3f4;" onerror="this.style.display=\'none\'">' : "") +
+                '<span><span class="p-name" style="font-size:1.15rem; font-weight:700;">' + esc(p.name) + "</span>" +
                 (p.country ? ' <span class="p-country" style="color:var(--ink-faint); font-weight:600; font-size:0.9rem;">· ' + esc(p.country) + "</span>" : "") +
-                "</article>";
+                (p.role ? '<br><span style="color:var(--ink-soft); font-size:0.9rem;">' + esc(p.role) + "</span>" : "") +
+                "</span></article>";
             });
             els.playerResult.innerHTML = html;
             var hits = els.playerResult.querySelectorAll(".player-hit");
             for (var i = 0; i < hits.length; i++) {
-              hits[i].addEventListener("click", function () { loadPlayerInfo(this.getAttribute("data-id")); });
+              hits[i].addEventListener("click", function () { loadPlayerProfile(playerHits[this.getAttribute("data-hit")]); });
             }
           })
           .catch(function () {
-            els.playerNote.textContent = "Player search could not reach the data service just now. Please try again in a little while.";
+            els.playerNote.textContent = "Player search could not reach the data services just now. Please try again in a little while.";
           });
       }
-      function loadPlayerInfo(id) {
-        if (!id) { return; }
+      function cricApiStats(cricId, name) {
+        function byId(id) {
+          return fetchT("https://api.cricapi.com/v1/players_info?apikey=" + encodeURIComponent(CONFIG.CRICAPI_KEY) + "&id=" + encodeURIComponent(id), 5000)
+            .then(function (json) { return (json && json.data) || null; });
+        }
+        if (cricId) { return byId(cricId).catch(function () { return null; }); }
+        if (!CONFIG.CRICAPI_KEY || !name) { return Promise.resolve(null); }
+        return cricApiPlayerSearch(name).then(function (hits) {
+          return hits.length ? byId(hits[0].cricId) : null;
+        }).catch(function () { return null; });
+      }
+      function loadPlayerProfile(hit) {
+        if (!hit) { return; }
         els.playerNote.textContent = "Loading player profile…";
-        var url = "https://api.cricapi.com/v1/players_info?apikey=" +
-          encodeURIComponent(CONFIG.CRICAPI_KEY) + "&id=" + encodeURIComponent(id);
-        fetch(url)
-          .then(function (res) { if (!res.ok) { throw new Error("HTTP " + res.status); } return res.json(); })
-          .then(function (json) {
-            var p = (json && json.data) || null;
-            if (!p) { els.playerNote.textContent = "That player's profile could not be loaded."; return; }
-            var html = '<article class="gcard"><span class="p-name" style="font-size:1.2rem; font-weight:700;">' + esc(p.name) + "</span>" +
-              (p.country ? ' <span class="p-country" style="color:var(--ink-faint); font-weight:600; font-size:0.9rem;">· ' + esc(p.country) + "</span>" : "");
-            var stats = (p.stats || []).filter(function (s) { return s.fn === "batting" || s.fn === "bowling"; }).slice(0, 14);
-            if (stats.length) {
-              html += '<table class="rec" style="margin-top:8px;"><thead><tr><th scope="col">Format</th><th scope="col">Stat</th><th scope="col">Value</th></tr></thead><tbody>';
-              stats.forEach(function (s) {
-                html += "<tr><td>" + esc((s.matchType || "").toUpperCase()) + " · " + esc(s.fn || "") + "</td><td class=\"holder\">" + esc(s.stat || "") + "</td><td>" + esc(s.value) + "</td></tr>";
-              });
-              html += "</tbody></table>";
-            } else {
-              html += '<p class="gstatus">Profile loaded — no career statistics were returned for this player.</p>';
-            }
-            html += "</article>";
-            els.playerResult.innerHTML = html;
-            els.playerNote.textContent = "Profile loaded from CricketData.";
-          })
-          .catch(function () {
-            els.playerNote.textContent = "That player's profile could not be loaded just now. Please try again.";
-          });
+        var espnP = hit.espnId ? fetchT("https://site.web.api.espn.com/apis/common/v3/sports/cricket/athletes/" + hit.espnId, 7000).catch(function () { return null; }) : Promise.resolve(null);
+        var tsdbP = hit.tsdbId ? fetchT("https://www.thesportsdb.com/api/v1/json/123/lookupplayer.php?id=" + hit.tsdbId, 6000).then(function (j) { return (j && j.players && j.players[0]) || null; }).catch(function () { return null; })
+          : tsdbPlayerSearch(hit.name).then(function (hits) {
+              return hits.length ? fetchT("https://www.thesportsdb.com/api/v1/json/123/lookupplayer.php?id=" + hits[0].tsdbId, 6000).then(function (j) { return (j && j.players && j.players[0]) || null; }).catch(function () { return null; }) : null;
+            }).catch(function () { return null; });
+        var statsP = cricApiStats(hit.cricId, hit.name);
+        Promise.all([espnP, tsdbP, statsP]).then(function (r) {
+          var ea = (r[0] && r[0].athlete) || null, tp = r[1] || null, cp = r[2] || null;
+          if (!ea && !tp && !cp) { els.playerNote.textContent = "That player's profile could not be loaded just now. Please try again."; return; }
+          var name = (ea && (ea.fullName || ea.displayName)) || (tp && tp.strPlayer) || (cp && cp.name) || hit.name;
+          var country = (ea && ea.team && ea.team.displayName) || (tp && tp.strNationality) || (cp && cp.country) || hit.country || "";
+          var photo = (ea && ea.headshot && ea.headshot.href) || (tp && (tp.strCutout || tp.strThumb)) || hit.photo || "";
+          var role = (ea && ea.position && ea.position.name) || (tp && tp.strPosition) || "";
+          var bat = (ea && ea.batStyle && ea.batStyle[0] && ea.batStyle[0].description) || "";
+          var bowl = (ea && ea.bowlStyle && ea.bowlStyle[0] && ea.bowlStyle[0].description) || "";
+          var dob = (ea && ea.displayDOB) || (tp && tp.dateBorn) || "";
+          var born = (tp && tp.strBirthLocation) || "";
+          var bio = (tp && tp.strDescriptionEN) || "";
+          var html = '<article class="gcard"><div style="display:flex; gap:14px; align-items:flex-start;">' +
+            (photo ? '<img loading="lazy" src="' + esc(photo) + '" alt="" style="width:92px; height:92px; border-radius:12px; object-fit:cover; background:#f1f3f4; flex:none;" onerror="this.style.display=\'none\'">' : "") +
+            '<div><span class="p-name" style="font-size:1.25rem; font-weight:700;">' + esc(name) + "</span>" +
+            (country ? ' <span class="p-country" style="color:var(--ink-faint); font-weight:600; font-size:0.9rem;">· ' + esc(country) + "</span>" : "") +
+            '<table class="rec" style="margin-top:8px;"><tbody>' +
+            (role ? "<tr><td>Role</td><td class=\"holder\">" + esc(role) + "</td></tr>" : "") +
+            (bat ? "<tr><td>Batting</td><td class=\"holder\">" + esc(bat) + "</td></tr>" : "") +
+            (bowl ? "<tr><td>Bowling</td><td class=\"holder\">" + esc(bowl) + "</td></tr>" : "") +
+            (dob ? "<tr><td>Born</td><td class=\"holder\">" + esc(dob) + (born ? " · " + esc(born) : "") + "</td></tr>" : "") +
+            "</tbody></table></div></div>";
+          var stats = cp ? (cp.stats || []).filter(function (s) { return s.fn === "batting" || s.fn === "bowling"; }).slice(0, 24) : [];
+          if (stats.length) {
+            html += '<p class="sc-sec" style="margin-top:14px;">Career record</p><table class="rec"><thead><tr><th scope="col">Format</th><th scope="col">Stat</th><th scope="col">Value</th></tr></thead><tbody>';
+            stats.forEach(function (s) {
+              html += "<tr><td>" + esc((s.matchType || "").toUpperCase()) + " · " + esc(s.fn || "") + "</td><td class=\"holder\">" + esc(s.stat || "") + "</td><td>" + esc(s.value) + "</td></tr>";
+            });
+            html += "</tbody></table>";
+          } else {
+            html += '<p class="gstatus" style="margin-top:12px;">Career statistics (matches, runs, wickets, averages) come from the CricketData service, which did not answer just now — the profile above is complete; try again later for the full record.</p>';
+          }
+          if (bio) { html += '<p style="margin-top:12px; color:var(--ink-soft); font-size:0.95rem; line-height:1.55;">' + esc(bio.slice(0, 420)) + (bio.length > 420 ? "…" : "") + "</p>"; }
+          html += "</article>";
+          els.playerResult.innerHTML = html;
+          els.playerNote.textContent = "Profile loaded.";
+        });
       }
+
       if (els.playerBtn) { els.playerBtn.addEventListener("click", searchPlayer); }
       if (els.playerInput) {
         els.playerInput.addEventListener("keydown", function (ev) {
