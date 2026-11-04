@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://live-cricket-scores.web.app/sitemap.xml

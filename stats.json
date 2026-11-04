@@ -1,0 +1,55 @@
+{
+ "updatedAt": "2026-10-29",
+ "note": "YouTube numbers are read from YouTube Studio and all numbers are refreshed daily. Website visitor counting started 25 Oct 2026.",
+ "youtube": {
+  "channel": "Sukoon Quran",
+  "handle": "@SukoonQuran313",
+  "subscribers": 45,
+  "totalViews": 711,
+  "videos": 11,
+  "latestVideo": {
+   "title": "صبح کے اذکار | سورۃ الناس (حصہ 2) | Sukoon Quran",
+   "url": "https://www.youtube.com/shorts/vnxDeYt4frM",
+   "views": 0,
+   "likes": 0
+  }
+ },
+ "websites": [
+  {
+   "name": "Live Cricket Score",
+   "url": "https://live-cricket-scores.web.app",
+   "views": 0
+  },
+  {
+   "name": "AI Video Tools",
+   "url": "https://best-ai-video-tools.web.app",
+   "views": 0
+  },
+  {
+   "name": "Background Remover",
+   "url": "https://bg-remover-online.web.app",
+   "views": 0
+  },
+  {
+   "name": "QR Code Generator",
+   "url": "https://qr-code-maker.web.app",
+   "views": 1
+  },
+  {
+   "name": "QR Code Scanner",
+   "url": "https://qr-scanner-online.web.app",
+   "views": 0
+  },
+  {
+   "name": "Image Compressor",
+   "url": "https://image-compressor-online.web.app",
+   "views": 0
+  },
+  {
+   "name": "YouTube Thumbnail Downloader",
+   "url": "https://thumbnail-downloader.web.app",
+   "views": 0
+  }
+ ],
+ "totalWebsiteViews": 1
+}
