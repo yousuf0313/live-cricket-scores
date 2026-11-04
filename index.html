@@ -26,7 +26,7 @@
         --radius: 12px;
       }
       * { box-sizing: border-box; }
-      html { scroll-behavior: smooth; }
+      html { scroll-behavior: smooth; overflow-x: clip; }
       body {
         margin: 0;
         font-family: "Roboto", Arial, sans-serif;
@@ -34,6 +34,7 @@
         line-height: 1.6;
         min-height: 100vh;
         background: var(--page-bg);
+        overflow-x: clip;
       }
       .wrap {
         max-width: 1160px;
@@ -158,7 +159,7 @@
         color: var(--ink);
       }
       .sec-head .rule { display: none; }
-      .sec-head .sec-sub { color: var(--ink-faint); font-size: 0.9rem; white-space: nowrap; margin-inline-start: auto; }
+      .sec-head .sec-sub { color: var(--ink-faint); font-size: 0.9rem; min-width: 0; margin-inline-start: auto; }
 
       /* ---------- Google Sports style match cards ---------- */
       .gcard-top {
@@ -504,11 +505,30 @@
       table.rec td.holder { font-weight: 500; }
       table.rec td.detail { color: var(--ink-soft); }
 
-      .mbadge { display:inline-block; font-size:.68rem; font-weight:800; letter-spacing:.06em; padding:2px 8px; border-radius:999px; margin-right:8px; vertical-align:middle; }
+      .mbadge { display:inline-block; font-size:.72rem; font-weight:800; letter-spacing:.06em; padding:3px 10px; border-radius:999px; margin-right:8px; vertical-align:middle; }
       .mbadge.live { background:#d93025; color:#fff; animation:mbpulse 1.6s infinite; }
       .mbadge.result { background:#e8eaed; color:#5f6368; }
       .mbadge.upcoming { background:#fef7e0; color:#b06000; }
+      .mbadge.break { background:#f9ab00; color:#202124; }
       @keyframes mbpulse { 0%,100% { opacity:1; } 50% { opacity:.55; } }
+
+      /* ---------- Google-style world list + state clarity ---------- */
+      .layout > * { min-width: 0; }
+      .mscores { min-width: 0; }
+      .gcard-info { min-width: 0; }
+      #worldGrid { grid-template-columns: 1fr; max-width: 680px; }
+      .gm-league { font-size: 0.88rem; font-weight: 500; color: #202124; margin: 2px; }
+      .gm-row { display: flex; align-items: center; gap: 10px; padding: 3px 0; }
+      .gm-row .gflag { width: 24px; height: 18px; border-radius: 2px; }
+      .gm-name { flex: 1; min-width: 0; font-size: 0.95rem; font-weight: 400; color: #202124; line-height: 1.4; }
+      .gm-row.bat .gm-name, .gm-row.win .gm-name { font-weight: 500; }
+      .gm-score { margin-inline-start: auto; font-size: 0.95rem; font-weight: 500; color: #202124; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .gm-score .gm-ov { font-size: 0.82rem; font-weight: 400; color: #5f6368; }
+      .gm-score.none { color: #80868b; font-weight: 400; }
+      .mb-status.is-live { color: #d93025; font-weight: 500; }
+      .mb-status.is-break { color: #b06000; font-weight: 500; }
+      #mbOpen.small { font-size: 0.6rem; letter-spacing: 0.04em; }
+      .md-state { margin-inline-start: 6px; flex: 0 0 auto; }
 
       /* ---------- Player search ---------- */
       .search-card { padding: 18px 20px 20px; margin-bottom: 14px; }
@@ -598,8 +618,9 @@
         table.points th, table.points td { padding: 10px 4px; }
         .strip-card { flex-basis: 240px; }
         .grid-auto { grid-template-columns: 1fr; }
-        .brand h1 { font-size: 1.15rem; }
-        .head-live { font-size: 0.85rem; }
+        .brand h1 { font-size: 1.05rem; }
+        .head-live { font-size: 0.85rem; max-width: 38vw; overflow: hidden; text-overflow: ellipsis; }
+        #headBadgeText { overflow: hidden; text-overflow: ellipsis; }
         footer { justify-content: flex-start; }
       }
       @media (max-width: 1080px) {
@@ -620,7 +641,11 @@
       .mscore { font-size: 1.45rem; font-weight: 700; color: var(--ink); line-height: 1.3; font-variant-numeric: tabular-nums; white-space: nowrap; }
       .mscore .mov { display: block; font-size: 0.8rem; font-weight: 400; color: var(--ink-faint); line-height: 1.3; }
       .mscore .mov:empty { display: none; }
-      .mstatus { text-align: center; margin: 12px 0 0; font-size: 0.95rem; font-weight: 400; color: var(--ink); line-height: 1.5; }
+      .mstatus { text-align: center; margin: 12px 0 0; font-size: 0.85rem; font-weight: 400; color: var(--ink); line-height: 1.5; }
+      .mstatus.live { color: #d93025; font-weight: 500; }
+      .mstatus.brk { color: #b06000; font-weight: 500; }
+      .mstatus.done, .mstatus.soon { color: #5f6368; }
+      .md-series { margin: 0 0 10px; font-size: 0.85rem; color: #5f6368; }
       .mseries { text-align: center; margin: 2px 0 0; font-size: 0.82rem; color: var(--ink-faint); line-height: 1.45; }
       .mvenue { text-align: center; margin: 2px 0 0; font-size: 0.82rem; color: var(--ink-faint); }
       .mupcoming { display: grid; grid-template-columns: 1fr 1px 1fr; gap: 12px; align-items: stretch; }
@@ -748,12 +773,15 @@
     /* Phone fit: slightly smaller overall scale, nothing wider than the screen */
     @media (max-width: 640px) {
       html { font-size: 15px; }
-      body { overflow-x: hidden; }
       .g-line { white-space: normal; }
       .g-panel { overflow-x: auto; }
-      .sc-table { min-width: 420px; }
+      .sc-table { font-size: 0.82rem; }
+      .sc-table th, .sc-table td { padding: 6px 4px; }
       .hero-row .gscore { font-size: clamp(1.4rem, 6.4vw, 2rem); }
       .live-strip, .g-live { max-width: 100%; }
+      .sec-head { flex-wrap: wrap; }
+      .sec-head .sec-sub { white-space: normal; margin-inline-start: 0; flex-basis: 100%; }
+      .gcard-top { flex-wrap: wrap; }
     }
   </style>
   <link rel="canonical" href="https://live-cricket-scores.web.app/" />
@@ -1065,6 +1093,7 @@
           <div class="md-head">
             <button type="button" class="md-back" id="mdBack" aria-label="Back">&#8592; Back</button>
             <span class="md-title" id="mdTitle">Match</span>
+            <span class="mbadge md-state" id="mdState" hidden></span>
             <button type="button" class="md-close" id="mdClose" aria-label="Close match details">&times;</button>
           </div>
           <div class="md-tabs" role="tablist" aria-label="Match detail sections">
@@ -1125,7 +1154,6 @@
         headBadgeText: document.getElementById("headBadgeText"),
         matchBadge: document.getElementById("matchBadge"),
         matchBadgeText: document.getElementById("matchBadgeText"),
-        stripStatus: document.getElementById("stripTodayStatus"),
         worldGrid: document.getElementById("worldGrid"),
         worldNote: document.getElementById("worldNote"),
         playerInput: document.getElementById("playerInput"),
@@ -1179,14 +1207,16 @@
 
       function setBadgeState(state) {
         var headText, cardText, modeClass;
-        if (state === "live") {
+        if (state === "live" || state === "started") {
+          /* In-progress always uses the one red LIVE styling — there is
+             no separate plain-ink in-progress variant. */
           headText = "LIVE Score"; cardText = "LIVE"; modeClass = "";
-        } else if (state === "started") {
-          headText = "Match Started"; cardText = "Match Started"; modeClass = "started";
+          var hc = (typeof heroTeams !== "undefined" && heroTeams) || [];
+          if (hc[0] && hc[1]) { headText = "LIVE \u2014 " + teamCode(hc[0]) + " v " + teamCode(hc[1]); }
         } else if (state === "ended") {
           headText = "Match Completed"; cardText = "Match Completed"; modeClass = "started";
         } else {
-          headText = "Upcoming Match"; cardText = "Upcoming Match — Starting Soon"; modeClass = "upcoming";
+          headText = "Upcoming Match"; cardText = "Upcoming Match \u2014 Starting Soon"; modeClass = "upcoming";
         }
         els.headBadgeText.textContent = headText;
         els.matchBadgeText.textContent = cardText;
@@ -1195,11 +1225,6 @@
         if (modeClass) {
           els.headBadge.classList.add(modeClass);
           els.matchBadge.classList.add(modeClass);
-        }
-        if (els.stripStatus) {
-          var stripText = state === "live" ? "LIVE" : state === "started" ? "STARTED" : state === "ended" ? "RESULT" : "UPCOMING";
-          els.stripStatus.textContent = stripText;
-          els.stripStatus.className = "strip-status " + (state === "live" ? "live" : state === "upcoming" ? "up" : "");
         }
       }
 
@@ -1355,7 +1380,7 @@
           var st = (m.status || "").toLowerCase();
           var ended = m.matchEnded === true || /won by|match tied|match drawn|no result|abandon/.test(st);
           var started = m.matchStarted === true || !!(m.score && m.score.length);
-          var stateRank = (!ended && started) ? 0 : (!ended ? 1 : 2);
+          var stateRank = (!ended && started) ? (breakWord(m.status) ? 0.5 : 0) : (!ended ? 1 : 2);
           var gd = gmtDate(m.dateTimeGMT); var dt = gd ? gd.getTime() : 0;
           var key = [stateRank, heroTier(m), stateRank === 2 ? -dt : dt];
           if (!bestKey || key[0] < bestKey[0] ||
@@ -1871,6 +1896,54 @@ var espnEventId = null;
         var a = String(teams[0]).toLowerCase().replace(/[^a-z]/g, ""), b = String(teams[1]).toLowerCase().replace(/[^a-z]/g, "");
         return a < b ? a + "|" + b : b + "|" + a;
       }
+      /* ---------- Match phase: live / break / result / upcoming ----------
+         A match whose state is "in" but whose status says Stumps, Lunch,
+         Tea, an innings break, rain or a delay is NOT live: it renders an
+         amber BREAK badge, is excluded from the LIVE NOW count and gets
+         no live sort boost. */
+      var BREAK_RE = /stumps|lunch|\btea\b|innings break|rain|delay/i;
+      function breakWord(status) {
+        var m = BREAK_RE.exec(String(status || ""));
+        if (!m) { return ""; }
+        var w = m[0].toLowerCase();
+        if (w === "stumps") { return "Stumps"; }
+        if (w === "lunch") { return "Lunch"; }
+        if (w === "tea") { return "Tea"; }
+        if (w === "innings break") { return "Innings Break"; }
+        if (w === "rain") { return "Rain"; }
+        return "Delay";
+      }
+      function matchPhase(m) {
+        if (!m) { return "pre"; }
+        var st = matchState(m);
+        if (st === "post") { return "post"; }
+        if (breakWord(m.status)) { return "break"; }
+        if (st === "in") { return "live"; }
+        return "pre";
+      }
+      function isLivePlaying(m) { return matchPhase(m) === "live"; }
+      function badgeInfo(m) {
+        var ph = matchPhase(m);
+        if (ph === "live") { return { cls: "live", text: "\u25CF LIVE" }; }
+        if (ph === "break") { return { cls: "break", text: "\u25CF BREAK \u2014 " + breakWord(m.status) }; }
+        if (ph === "post") { return { cls: "result", text: "RESULT" }; }
+        return { cls: "upcoming", text: "UPCOMING" };
+      }
+      function badgeHtml(m) { var b = badgeInfo(m); return '<span class="mbadge ' + b.cls + '">' + b.text + "</span>"; }
+      function teamCode(name) {
+        var n = String(name || "").toLowerCase();
+        var map = { "pakistan": "PAK", "india": "IND", "england": "ENG", "australia": "AUS", "new zealand": "NZ", "south africa": "SA", "sri lanka": "SL", "bangladesh": "BAN", "afghanistan": "AFG", "ireland": "IRE", "zimbabwe": "ZIM", "west indies": "WI", "netherlands": "NED", "scotland": "SCO", "nepal": "NEP", "oman": "OMA", "united arab emirates": "UAE", "uae": "UAE", "canada": "CAN", "united states": "USA", "usa": "USA", "namibia": "NAM", "papua new guinea": "PNG", "hong kong": "HK", "kenya": "KEN", "uganda": "UGA" };
+        for (var k in map) { if (new RegExp("\\b" + k + "\\b").test(n)) { return map[k]; } }
+        var w = String(name || "").split(" ").filter(function (x) { return x.length; });
+        return w.length > 1 ? w.map(function (x) { return (x[0] || "").toUpperCase(); }).join("").slice(0, 3) : String(name || "").slice(0, 3).toUpperCase();
+      }
+      function isTodayMatch(m) {
+        var d = gmtDate((m && (m.dateTimeGMT || m.date)) || "");
+        if (!d) { return false; }
+        try {
+          return d.toLocaleDateString("en-GB", { timeZone: "Asia/Karachi" }) === new Date().toLocaleDateString("en-GB", { timeZone: "Asia/Karachi" });
+        } catch (e) { return d.toDateString() === new Date().toDateString(); }
+      }
       function matchState(m) {
         if (m._state) { return m._state; }
         if (m.matchEnded === true) { return "post"; }
@@ -1884,14 +1957,22 @@ var espnEventId = null;
         return out;
       }
       function sortMatches(list) {
-        var rank = { "in": 0, "pre": 1, "post": 2 };
+        /* Google order: live (actually playing) -> breaks -> today's
+           upcoming -> results -> later fixtures. */
+        function rank(m) {
+          var ph = matchPhase(m);
+          if (ph === "live") { return 0; }
+          if (ph === "break") { return 1; }
+          if (ph === "pre") { return isTodayMatch(m) ? 2 : 4; }
+          return 3;
+        }
         function pak(m) { var t = (m.teams || []).join(" ").toLowerCase(); return t.indexOf("pakistan") !== -1 ? 0 : 1; }
         return list.slice().sort(function (a, b) {
-          var ra = rank[matchState(a)], rb = rank[matchState(b)];
+          var ra = rank(a), rb = rank(b);
           if (ra !== rb) { return ra - rb; }
           if (ra === 0 && pak(a) !== pak(b)) { return pak(a) - pak(b); }
           var da = new Date(a.dateTimeGMT || a.date || 0).getTime() || 0, db = new Date(b.dateTimeGMT || b.date || 0).getTime() || 0;
-          return ra === 2 ? db - da : da - db;
+          return ra === 3 ? db - da : da - db;
         });
       }
       function fetchEspnHeaderEvents() {
@@ -2124,51 +2205,73 @@ var espnEventId = null;
       function renderWorld(list) {
         if (!els.worldGrid || !list || !list.length) { return; }
         var html = "";
+        var lastLeague = null;
         list.forEach(function (m) {
           var teams = m.teams || [];
-          var hasScore = !!(m.score && m.score.length);
           var day = dayLabel(m.date);
-          var mst = matchState(m);
-          var badge = mst === "in" ? '<span class="mbadge live">\u25CF LIVE</span>' : mst === "post" ? '<span class="mbadge result">RESULT</span>' : '<span class="mbadge upcoming">UPCOMING</span>';
+          var ph = matchPhase(m);
+          var league = m.name || "";
+          if (league && league !== lastLeague) {
+            html += '<div class="gm-league">' + esc(league) + "</div>";
+            lastLeague = league;
+          }
           html += '<article class="gcard' + (m._fixtureOnly ? "" : " mclick") + '" data-cat="' + classifyMatch(m) + '"' +
             (m.id ? ' data-mid="' + esc(m.id) + '"' : "") + ">" +
-            '<div class="mday">' + badge + esc(day || "") + "</div>";
+            '<div class="mday">' + badgeHtml(m) + esc(day || "") + "</div>";
           if (teams.length >= 2) {
-            if (hasScore) {
-              var cells = "";
-              teams.forEach(function (team) {
-                var inn = teamScoreFor(m, team);
-                var sc = "—", ov = "";
-                if (inn) {
-                  sc = esc(inn.r) + (inn.w != null ? "/" + esc(inn.w) : "");
-                  ov = inn.o != null ? "(" + esc(inn.o) + ")" : "";
-                }
-                cells += '<div class="mscore">' + sc + (ov ? '<span class="mov">' + ov + "</span>" : "") + "</div>";
-              });
-              html += '<div class="mteams">' +
-                '<div class="mteam">' + flagHtml(teams[0]) + '<span class="mname">' + esc(teams[0]) + "</span></div>" +
-                '<div class="mscores">' + cells + "</div>" +
-                '<div class="mteam">' + flagHtml(teams[1]) + '<span class="mname">' + esc(teams[1]) + "</span></div></div>";
-            } else {
-              html += '<div class="mupcoming">' +
-                '<div class="mup-col">' + flagHtml(teams[0]) + '<span class="mname">' + esc(teams[0]) + "</span></div>" +
-                '<div class="mup-div"></div>' +
-                '<div class="mup-col">' + flagHtml(teams[1]) + '<span class="mname">' + esc(teams[1]) + "</span></div></div>";
+            /* Current batting side = the team of the latest innings;
+               winner = the team a "won by" result sentence starts with. */
+            var batTeam = "";
+            if (m.score && m.score.length) {
+              var lin = (m.score[m.score.length - 1].inning || "").toLowerCase();
+              teams.forEach(function (t) { if (lin.indexOf(t.toLowerCase()) === 0) { batTeam = t; } });
             }
+            var winner = "";
+            if (ph === "post" && m.status && /won/i.test(m.status)) {
+              teams.forEach(function (t) { if (m.status.indexOf(t) === 0) { winner = t; } });
+            }
+            teams.forEach(function (team) {
+              var inn = teamScoreFor(m, team);
+              var rowCls = "gm-row" + (team === winner ? " win" : (team === batTeam && ph === "live" ? " bat" : ""));
+              var scHtml = "";
+              if (inn) {
+                scHtml = '<span class="gm-score">' + esc(inn.r) + (inn.w != null ? "/" + esc(inn.w) : "") + (inn.o != null ? ' <span class="gm-ov">(' + esc(inn.o) + ")</span>" : "") + "</span>";
+              } else if (ph === "post") {
+                scHtml = '<span class="gm-score none">\u2014</span>';
+              }
+              html += '<div class="' + rowCls + '">' + flagHtml(team) + '<span class="gm-name">' + esc(team) + "</span>" + scHtml + "</div>";
+            });
           } else {
             html += '<p class="mstatus">' + esc(m.name || "Match") + "</p>";
           }
-          if (m.status) { html += '<p class="mstatus">' + esc(m.status) + "</p>"; }
-          html += '<p class="mseries">' + esc(m.name || "") + "</p>";
-          if (m.venue) { html += '<p class="mvenue">' + esc(m.venue) + "</p>"; }
+          /* One status line under the rows, coloured by state. For a
+             limited-overs chase the source status already carries the
+             equation ("X need N runs from M overs"); it is used as-is. */
+          var line = "", lineCls = "";
+          if (ph === "live") { line = "\u25CF LIVE \u00B7 " + (m.status || "Live now"); lineCls = "live"; }
+          else if (ph === "break") { line = "\u25CF BREAK \u2014 " + breakWord(m.status) + (m.status ? " \u00B7 " + m.status : ""); lineCls = "brk"; }
+          else if (ph === "post") { line = m.status || "Result"; lineCls = "done"; }
+          else {
+            lineCls = "soon";
+            if (m._fixtureOnly) { line = m.status || "Fixture"; }
+            else {
+              var sd = gmtDate(m.dateTimeGMT || m.date || "");
+              if (sd) {
+                var tm = sd.toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Karachi" });
+                line = "Starts at " + tm + (isTodayMatch(m) ? "" : " \u00B7 " + sd.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Karachi" }));
+              } else { line = m.status || "Upcoming"; }
+            }
+          }
+          if (line) { html += '<p class="mstatus ' + lineCls + '" style="text-align:left;">' + esc(line) + "</p>"; }
+          if (m.venue) { html += '<p class="mvenue" style="text-align:left;">' + esc(m.venue) + "</p>"; }
           html += "</article>";
         });
         if (html) {
           els.worldGrid.innerHTML = html;
-          var liveNow = list.filter(function (x) { return matchState(x) === "in"; });
+          var liveNow = list.filter(isLivePlaying);
           els.worldNote.textContent = liveNow.length ?
-            ("\uD83D\uDD34 LIVE NOW (" + liveNow.length + "): " + liveNow.map(function (x) { return (x.teams || []).join(" v "); }).slice(0, 4).join(" \u00B7 ") + (liveNow.length > 4 ? " \u00B7 and more below" : "") + " — tap any match for its full scorecard. This list refreshes automatically every 2 minutes.") :
-            "No match is live at this moment — upcoming matches and latest results are below. This list refreshes automatically every 2 minutes.";
+            ("\uD83D\uDD34 LIVE NOW (" + liveNow.length + "): " + liveNow.map(function (x) { return (x.teams || []).join(" v "); }).slice(0, 4).join(" \u00B7 ") + (liveNow.length > 4 ? " \u00B7 and more below" : "") + " \u2014 tap any match for its full scorecard. This list refreshes automatically every 2 minutes.") :
+            "No match is live at this moment \u2014 upcoming matches and latest results are below. This list refreshes automatically every 2 minutes.";
           applyWorldFilter();
         }
       }
@@ -2343,6 +2446,15 @@ var espnEventId = null;
          Closing it leaves a small round LIVE button to bring it back. */
       function updateMiniBar(match) {
         if (!els.mbStatus) { return; }
+        var ph = matchPhase(match);
+        els.mbStatus.classList.remove("is-live", "is-break");
+        if (ph === "live") { els.mbStatus.classList.add("is-live"); }
+        if (ph === "break") { els.mbStatus.classList.add("is-break"); }
+        if (els.mbOpen) {
+          var mbLbl = ph === "live" ? "LIVE" : ph === "break" ? "BREAK" : ph === "post" ? "RESULT" : "SOON";
+          els.mbOpen.textContent = mbLbl;
+          els.mbOpen.classList.toggle("small", mbLbl === "RESULT");
+        }
         var pakScore = "", engScore = "";
         if (match && match.score && match.score.length) {
           match.score.forEach(function (inn) {
@@ -2364,7 +2476,7 @@ var espnEventId = null;
           els.mbEng.style.display = "none";
           els.mbVs.style.display = "";
           els.mbStatus.textContent = (match && match.status) ? match.status :
-            (new Date() >= MATCH_START ? "Match started — score loading" : "Starts 1:00 PM");
+            (new Date() >= MATCH_START ? "Match started \u2014 score loading" : "Starts 1:00 PM");
         }
       }
 
@@ -2544,6 +2656,7 @@ var espnEventId = null;
           venue: m.venue || "",
           date: m.date || "",
           score: m.score || [],
+          _state: m._state || null, matchStarted: m.matchStarted === true, matchEnded: m.matchEnded === true,
           tossWinner: m.tossWinner || "",
           tossChoice: m.tossChoice || ""
         };
@@ -2558,6 +2671,13 @@ var espnEventId = null;
         mdScState = d.id ? "loading" : "none";
         mdSqState = d.id ? "loading" : "none";
         md.title.textContent = (d.teams && d.teams.length >= 2) ? d.teams[0] + " vs " + d.teams[1] : (d.name || "Match");
+        var mdStateEl = document.getElementById("mdState");
+        if (mdStateEl) {
+          var bi = badgeInfo(d);
+          mdStateEl.hidden = false;
+          mdStateEl.className = "mbadge md-state " + bi.cls;
+          mdStateEl.textContent = bi.text;
+        }
         md.player.hidden = true;
         md.player.innerHTML = "";
         md.body.hidden = false;
@@ -2612,7 +2732,8 @@ var espnEventId = null;
         var d = mdCurrent;
         if (!d.teams || d.teams.length < 2) { return ""; }
         var has = !!(d.score && d.score.length);
-        var h = '<div class="' + (big ? "md-scores-head " : "") + 'mteams">';
+        var h = d.name ? '<p class="md-series">' + esc(d.name) + "</p>" : "";
+        h += '<div class="' + (big ? "md-scores-head " : "") + 'mteams">';
         h += '<div class="mteam">' + flagHtml(d.teams[0]) + '<span class="mname">' + esc(d.teams[0]) + "</span></div>";
         if (has) {
           var cells = "";
@@ -2630,7 +2751,13 @@ var espnEventId = null;
           h += "<div></div>";
         }
         h += '<div class="mteam">' + flagHtml(d.teams[1]) + '<span class="mname">' + esc(d.teams[1]) + "</span></div></div>";
-        if (d.status) { h += '<p class="mstatus">' + esc(d.status) + "</p>"; }
+        var dph = matchPhase(d);
+        if (d.status) { h += '<p class="mstatus ' + (dph === "live" ? "live" : dph === "break" ? "brk" : dph === "post" ? "done" : "soon") + '" style="text-align:left;">' + esc(d.status) + "</p>"; }
+        var metaBits = [];
+        if (d.date) { metaBits.push(esc(d.date)); }
+        if (d.venue) { metaBits.push(esc(d.venue)); }
+        if (metaBits.length) { h += '<p class="mvenue" style="text-align:left;">' + metaBits.join(" \u00B7 ") + "</p>"; }
+        if (d.tossWinner) { h += '<p class="mvenue" style="text-align:left;">Toss: ' + esc(d.tossWinner) + " won the toss" + (d.tossChoice ? " and chose to " + esc(d.tossChoice) : "") + "</p>"; }
         return h;
       }
       function innTeamName(inn) {
